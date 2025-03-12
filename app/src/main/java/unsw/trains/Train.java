@@ -3,15 +3,17 @@ package unsw.trains;
 import java.util.List;
 import unsw.utils.Position;
 
-public class Train {
+public abstract class Train {
     private String trainId;
     private Position position;
     private List<String> route;
+    private String type;
 
-    public Train(String trainId, Position position, List<String> route) {
+    public Train(String trainId, Position position, List<String> route, String type) {
         this.trainId = trainId;
         this.position = position;
         this.route = route;
+        this.type = type;
     }
 
     public String getTrainId() {
@@ -26,4 +28,7 @@ public class Train {
         return route;
     }
 
+    public String getType() {
+        return type;
+    }
 }

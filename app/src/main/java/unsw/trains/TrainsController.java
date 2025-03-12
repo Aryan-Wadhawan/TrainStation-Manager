@@ -27,6 +27,12 @@ public class TrainsController {
     private Map<String, Track> tracks = new HashMap<>();
     private Map<String, Train> trains = new HashMap<>();
 
+    private TrainTracker trainTracker;
+
+    public TrainsController() {
+        this.trainTracker = new TrainTracker(trains, stations, tracks);
+    }
+
     public void createStation(String stationId, String type, double x, double y) {
         // Todo: Task ai
         Station newStation;
@@ -100,38 +106,65 @@ public class TrainsController {
             throw new IllegalArgumentException("Invalid train type: " + type);
         }
 
-        trains.put(stationId, newTrain);
+        trains.put(trainId, newTrain);
         firstStation.addTrain(newTrain);
     }
 
     public List<String> listStationIds() {
         // Todo: Task aiv
-        return new ArrayList<>();
+        return new ArrayList<>(stations.keySet());
     }
 
     public List<String> listTrackIds() {
         // Todo: Task av
-        return new ArrayList<>();
+        return new ArrayList<>(tracks.keySet());
     }
 
     public List<String> listTrainIds() {
         // Todo: Task avi
-        return new ArrayList<>();
+        return new ArrayList<>(trains.keySet());
     }
 
     public TrainInfoResponse getTrainInfo(String trainId) {
         // Todo: Task avii
-        return null;
+        Train train = trains.get(trainId);
+        if (train == null) {
+            return null;
+        }
+
+        String location = trainTracker.getTrainLocation(trainId);
+
+        return new TrainInfoResponse(train.getTrainId(), location, train.getType(), train.getPosition());
     }
 
     public StationInfoResponse getStationInfo(String stationId) {
         // Todo: Task aviii
-        return null;
+        Station station = stations.get(stationId);
+        if (station == null) {
+            return null;
+        }
+
+        List<TrainInfoResponse> trainInfoResponses = new ArrayList<>();
+
+        for (Train train : station.getTrains()) {
+            trainInfoResponses
+                    .add(new TrainInfoResponse(train.getTrainId(), stationId, train.getType(), train.getPosition()));
+        }
+
+        return new StationInfoResponse(station.getStationId(), station.getType(), station.getPosition(),
+                trainInfoResponses);
     }
 
     public TrackInfoResponse getTrackInfo(String trackId) {
         // Todo: Task aix
-        return null;
+        Track track = tracks.get(trackId);
+        if (track == null) {
+            return null;
+        }
+
+        return new TrackInfoResponse(track.getTrackId(), track.getFromStationId(), track.getToStationId(),
+                track.getType(), track.getDurability());
+
     }
 
     public void simulate() {
@@ -176,19 +209,27 @@ public class TrainsController {
     }
 
     private boolean isValidRoute(List<String> route, String type) {
-        if (route.size() < 2) {
-            return false;
+        if (route.size() < 2)
+            return false; // A valid route needs at least two stations
+
+        if (isCyclicalRoute(route)) {
+            if (type.equals("PassengerTrain") || type.equals("CargoTrain")) {
+                return false; // Passenger and Cargo trains cannot have cyclical routes
+            }
         }
 
-        boolean isCyclical = isCyclicalRoute(route);
-        if (type.equals("PassengerTrain") || type.equals("CargoTrain")) {
-            return !isCyclical;
+        // Check if every station in the route is connected by a track
+        for (int i = 0; i < route.size() - 1; i++) {
+            String from = route.get(i);
+            String to = route.get(i + 1);
+
+            boolean trackExists = tracks.values().stream().anyMatch(track -> track.connects(from, to));
+
+            if (!trackExists)
+                return false; // Route is broken
         }
 
-        if (type.equals("BulletTrain")) {
-            return true;
-        }
-
-        return false;
+        return true; // Valid
     }
+
 }

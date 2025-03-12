@@ -1,5 +1,9 @@
 package unsw.tracks;
 
+import java.util.HashSet;
+import java.util.Set;
+
+import unsw.trains.Train;
 import unsw.utils.TrackType;
 
 public class Track {
@@ -8,6 +12,7 @@ public class Track {
     private String toStationId;
     private TrackType type;
     private final int durability;
+    private Set<Train> trainsOnTrack;
 
     public Track(String trackId, String fromStationId, String toStationId, TrackType type) {
         this.trackId = trackId;
@@ -17,6 +22,8 @@ public class Track {
 
         // for now, better to use ENUM maybe
         this.durability = 10;
+        this.trainsOnTrack = new HashSet<>(); //empty set of trains
+
     }
 
     public boolean connects(String stationA, String stationB) {
@@ -42,5 +49,9 @@ public class Track {
 
     public int getDurability() {
         return durability;
+    }
+
+    public boolean hasTrain(Train train) {
+        return trainsOnTrack.contains(train);
     }
 }

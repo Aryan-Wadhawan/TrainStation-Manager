@@ -1,5 +1,6 @@
 package unsw.stations;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import unsw.trains.Train;
@@ -15,7 +16,7 @@ public class Station {
         this.stationId = stationId;
         this.type = type;
         this.position = position;
-        // this.trains = new ArrayList<>();
+        this.trains = new ArrayList<>();
         // this.loads = new ArrayList<>();
     }
 
@@ -51,6 +52,14 @@ public class Station {
         }
 
         return trains.size() >= maxCapacity;
+    }
+
+    public List<Train> getTrains() {
+        return trains;
+    }
+
+    public boolean hasTrain(Train train) {
+        return trains.contains(train);
     }
 
     /**
