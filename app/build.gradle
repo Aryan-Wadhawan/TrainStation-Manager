@@ -57,7 +57,7 @@ java {
 
 checkstyle {
     configFile = file("${project.rootDir}/config/checkstyle.xml")
-    toolVersion = '10.3.3'
+    toolVersion = '10.21.4'
 }
 
 task lint {
