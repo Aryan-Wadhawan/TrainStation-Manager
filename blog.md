@@ -58,3 +58,18 @@ Understanding the importance of strict validation.
 Using InfoResponse correctly to avoid stale data.
 Debugging requires step-by-step verification of entity states.
 Test-driven development (TDD) helps catch errors early.
+
+TASK B UPDATE BLOG
+This past week, we focused on refactoring and improving the design of our train system, specifically handling perishable cargo. Initially, perishable cargo was mixed with regular cargo, causing data inconsistency and making it hard to manage expiration logic effectively.
+
+Key Design Improvements
+
+Separation of Concerns
+We split regular and perishable cargo into distinct lists in Train and Station classes.HAd a load classs first which would be super for all types of passengers/cargos
+Each class now only manages its respective responsibilities, making the code more maintainable.
+Efficient Expiry Handling
+Perishable cargo decreases time every simulation tick.
+Expired cargo is now removed from trains and stations in TrainMovementManager and CargoManager.
+Better Encapsulation now.
+Train subclasses now manage their own load info instead of relying on Train for all types of cargo. good change my favourite honestly.
+By the end of the week, tests were more reliable, expired cargo was correctly removed, and the overall OOP structure was much cleaner.
