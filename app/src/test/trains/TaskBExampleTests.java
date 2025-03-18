@@ -1,6 +1,5 @@
 package trains;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import unsw.response.models.LoadInfoResponse;
@@ -15,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.*;
 public class TaskBExampleTests {
     // Uncomment out the tests once you have completed each task.
     @Test
-    @Disabled // Remove the "@Disabled" annotation to enable the test.
     public void testSimpleMovement() {
         TrainsController controller = new TrainsController();
         controller.createStation("s1", "CentralStation", 0.0, 0.0);
@@ -41,7 +39,6 @@ public class TaskBExampleTests {
     }
 
     @Test
-    @Disabled // Remove the "@Disabled" annotation to enable the test.
     public void testCreateDifferentPassengersAndCargo() {
         TrainsController controller = new TrainsController();
         controller.createStation("s1", "PassengerStation", 0, 0);
@@ -66,7 +63,6 @@ public class TaskBExampleTests {
     }
 
     @Test
-    @Disabled // Remove the "@Disabled" annotation to enable the test.
     public void testTrainPicksUpPassenger() {
         TrainsController controller = new TrainsController();
         controller.createStation("s1", "PassengerStation", 0, 0);

@@ -38,4 +38,23 @@ public class TrainTracker {
         return "Unknown";
     }
 
+    public static String getTrainLocation(String trainId, Map<String, Train> trains, Map<String, Station> stations,
+            Map<String, Track> tracks) {
+        Train train = trains.get(trainId);
+        if (train == null)
+            return "Unknown";
+
+        for (Station station : stations.values()) {
+            if (station.hasTrain(train))
+                return station.getStationId();
+        }
+
+        for (Track track : tracks.values()) {
+            if (track.hasTrain(train))
+                return track.getTrackId();
+        }
+
+        return "Unknown";
+    }
+
 }

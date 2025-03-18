@@ -1,11 +1,20 @@
 package unsw.trains;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import unsw.exceptions.InvalidRouteException;
+import unsw.loads.Cargo;
+import unsw.loads.Passenger;
+import unsw.loads.PerishableCargo;
+import unsw.managers.CargoManager;
+// import unsw.managers.CargoManager;
+// import unsw.managers.PassengerManager;
+import unsw.managers.TrainMovementManager;
 import unsw.response.models.*;
 import unsw.stations.CargoStation;
 import unsw.stations.CentralStation;
@@ -19,7 +28,8 @@ import unsw.tracks.Track;
 /**
  * The controller for the Trains system.
  *
- * The method signatures here are provided for you. Do NOT change the method signatures.
+ * The method signatures here are provided for you. Do NOT change the method
+ * signatures.
  */
 public class TrainsController {
     // Add any fields here if necessary
@@ -28,9 +38,13 @@ public class TrainsController {
     private Map<String, Train> trains = new HashMap<>();
 
     private TrainTracker trainTracker;
+    private TrainMovementManager trainMovementManager;
 
     public TrainsController() {
         this.trainTracker = new TrainTracker(trains, stations, tracks);
+        this.trainMovementManager = new TrainMovementManager(trains, stations, tracks, trainTracker);
+        CargoManager.setTrainMovementManager(trainMovementManager);
+
     }
 
     public void createStation(String stationId, String type, double x, double y) {
@@ -71,9 +85,10 @@ public class TrainsController {
                 throw new IllegalArgumentException("A track already exists between the two provided stations!");
             }
         }
-
+        // Create track in both directions explicitly
         Track newTrack = new Track(trackId, fromStationId, toStationId, TrackType.NORMAL);
         tracks.put(trackId, newTrack);
+
     }
 
     public void createTrain(String trainId, String type, String stationId, List<String> route)
@@ -108,6 +123,9 @@ public class TrainsController {
 
         trains.put(trainId, newTrain);
         firstStation.addTrain(newTrain);
+
+        // PassengerManager.boardPassengers(newTrain, firstStation);
+        // CargoManager.boardCargo(newTrain, firstStation);
     }
 
     public List<String> listStationIds() {
@@ -126,34 +144,55 @@ public class TrainsController {
     }
 
     public TrainInfoResponse getTrainInfo(String trainId) {
-        // Todo: Task avii
         Train train = trains.get(trainId);
         if (train == null) {
-            return null;
+            throw new IllegalArgumentException("Train not found");
         }
 
         String location = trainTracker.getTrainLocation(trainId);
-
-        return new TrainInfoResponse(train.getTrainId(), location, train.getType(), train.getPosition());
+        return new TrainInfoResponse(train.getTrainId(), location, train.getType(), train.getPosition(),
+                train.getLoadsInfo());
     }
 
     public StationInfoResponse getStationInfo(String stationId) {
-        // Todo: Task aviii
         Station station = stations.get(stationId);
         if (station == null) {
-            return null;
-        }
-
-        List<TrainInfoResponse> trainInfoResponses = new ArrayList<>();
-
-        for (Train train : station.getTrains()) {
-            trainInfoResponses
-                    .add(new TrainInfoResponse(train.getTrainId(), stationId, train.getType(), train.getPosition()));
+            throw new IllegalArgumentException("Station does not exist.");
         }
 
         return new StationInfoResponse(station.getStationId(), station.getType(), station.getPosition(),
-                trainInfoResponses);
+                station.getLoadsInfo(),
+                station.getTrains().stream()
+                        .map(train -> new TrainInfoResponse(train.getTrainId(),
+                                trainTracker.getTrainLocation(train.getTrainId()), train.getType(), train.getPosition(),
+                                train.getLoadsInfo()))
+                        .collect(Collectors.toList()));
     }
+
+    // public StationInfoResponse getStationInfo(String stationId) {
+    //     Station station = stations.get(stationId);
+    //     if (station == null) {
+    //         throw new IllegalArgumentException("Station not found");
+    //     }
+
+    //     // Retrieve loads (Passengers + Cargo)
+    //     List<LoadInfoResponse> loads = new ArrayList<>();
+    //     for (Passenger p : station.getPassengersWaiting()) {
+    //         loads.add(new LoadInfoResponse(p.getPassengerId(), "Passenger"));
+    //     }
+    //     for (Cargo c : station.getCargoWaiting()) {
+    //         loads.add(new LoadInfoResponse(c.getCargoId(), "Cargo"));
+    //     }
+
+    //     // Retrieve trains at the station
+    //     List<TrainInfoResponse> trains = new ArrayList<>();
+    //     for (Train t : station.getTrains()) {
+    //         String location = station.getStationId();
+    //         trains.add(new TrainInfoResponse(t.getTrainId(), location, t.getType(), t.getPosition(), t.getLoadsInfo()));
+    //     }
+
+    //     return new StationInfoResponse(station.getStationId(), station.getType(), station.getPosition(), loads, trains);
+    // }
 
     public TrackInfoResponse getTrackInfo(String trackId) {
         // Todo: Task aix
@@ -168,7 +207,16 @@ public class TrainsController {
     }
 
     public void simulate() {
-        // Todo: Task bi
+        List<Train> sortedTrains = new ArrayList<>(trains.values());
+        sortedTrains.sort(Comparator.comparing(Train::getTrainId));
+
+        for (Station station : stations.values()) {
+            station.updatePerishableCargo();
+        }
+
+        for (Train train : sortedTrains) {
+            trainMovementManager.moveTrain(train);
+        }
     }
 
     /**
@@ -182,16 +230,36 @@ public class TrainsController {
     }
 
     public void createPassenger(String startStationId, String destStationId, String passengerId) {
-        // Todo: Task bii
+        Station startStation = stations.get(startStationId);
+        if (startStation == null || (!startStation.getType().equals("PassengerStation")
+                && !startStation.getType().equals("CentralStation"))) {
+            throw new IllegalArgumentException("Invalid start station for a passenger.");
+        }
+
+        Passenger passenger = new Passenger(passengerId, destStationId);
+        startStation.addPassenger(passenger);
     }
 
     public void createCargo(String startStationId, String destStationId, String cargoId, int weight) {
-        // Todo: Task bii
+        Station startStation = stations.get(startStationId);
+        if (startStation == null || (!startStation.getType().equals("CargoStation")
+                && !startStation.getType().equals("CentralStation"))) {
+            throw new IllegalArgumentException("Invalid start station for cargo.");
+        }
+
+        Cargo cargo = new Cargo(cargoId, destStationId, weight);
+        startStation.addCargo(cargo);
     }
 
     public void createPerishableCargo(String startStationId, String destStationId, String cargoId, int weight,
             int minsTillPerish) {
         // Todo: Task biii
+        Station station = stations.get(startStationId);
+        if (station == null)
+            throw new IllegalArgumentException("Invalid station ID");
+
+        PerishableCargo perishableCargo = new PerishableCargo(cargoId, destStationId, weight, minsTillPerish);
+        station.addCargo(perishableCargo);
     }
 
     public void createTrack(String trackId, String fromStationId, String toStationId, boolean isBreakable) {
