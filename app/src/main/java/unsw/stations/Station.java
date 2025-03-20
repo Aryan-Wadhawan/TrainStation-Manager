@@ -53,14 +53,6 @@ public class Station {
 
     }
 
-    // public void removeCargo(Cargo cargo) {
-    //     if (cargo instanceof PerishableCargo) {
-    //         perishableCargoWaiting.remove(cargo);
-    //     } else {
-    //         regularCargoWaiting.remove(cargo);
-    //     }
-    // }
-
     public void removeCargo(Cargo cargo) {
 
         regularCargoWaiting.remove(cargo);
@@ -74,13 +66,10 @@ public class Station {
     }
 
     public List<Cargo> getCargoWaiting() {
-        // Remove expired perishable cargo before returning list
-        //perishableCargoWaiting.removeIf(PerishableCargo::isExpired);
         return regularCargoWaiting;
     }
 
     public List<PerishableCargo> getPerishableCargoWaiting() {
-        //perishableCargoWaiting.removeIf(PerishableCargo::isExpired);
         return perishableCargoWaiting;
     }
 
