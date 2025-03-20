@@ -12,8 +12,6 @@ import unsw.loads.Cargo;
 import unsw.loads.Passenger;
 import unsw.loads.PerishableCargo;
 import unsw.managers.CargoManager;
-// import unsw.managers.CargoManager;
-// import unsw.managers.PassengerManager;
 import unsw.managers.TrainMovementManager;
 import unsw.response.models.*;
 import unsw.stations.CargoStation;
@@ -23,6 +21,7 @@ import unsw.stations.PassengerStation;
 import unsw.stations.Station;
 import unsw.utils.Position;
 import unsw.utils.TrackType;
+import unsw.tracks.BreakableTrack;
 import unsw.tracks.Track;
 
 /**
@@ -169,31 +168,6 @@ public class TrainsController {
                         .collect(Collectors.toList()));
     }
 
-    // public StationInfoResponse getStationInfo(String stationId) {
-    //     Station station = stations.get(stationId);
-    //     if (station == null) {
-    //         throw new IllegalArgumentException("Station not found");
-    //     }
-
-    //     // Retrieve loads (Passengers + Cargo)
-    //     List<LoadInfoResponse> loads = new ArrayList<>();
-    //     for (Passenger p : station.getPassengersWaiting()) {
-    //         loads.add(new LoadInfoResponse(p.getPassengerId(), "Passenger"));
-    //     }
-    //     for (Cargo c : station.getCargoWaiting()) {
-    //         loads.add(new LoadInfoResponse(c.getCargoId(), "Cargo"));
-    //     }
-
-    //     // Retrieve trains at the station
-    //     List<TrainInfoResponse> trains = new ArrayList<>();
-    //     for (Train t : station.getTrains()) {
-    //         String location = station.getStationId();
-    //         trains.add(new TrainInfoResponse(t.getTrainId(), location, t.getType(), t.getPosition(), t.getLoadsInfo()));
-    //     }
-
-    //     return new StationInfoResponse(station.getStationId(), station.getType(), station.getPosition(), loads, trains);
-    // }
-
     public TrackInfoResponse getTrackInfo(String trackId) {
         // Todo: Task aix
         Track track = tracks.get(trackId);
@@ -216,6 +190,12 @@ public class TrainsController {
 
         for (Train train : sortedTrains) {
             trainMovementManager.moveTrain(train);
+        }
+        // Repair all breakable tracks
+        for (Track track : tracks.values()) {
+            if (track instanceof BreakableTrack) {
+                ((BreakableTrack) track).repair();
+            }
         }
     }
 
@@ -263,7 +243,25 @@ public class TrainsController {
     }
 
     public void createTrack(String trackId, String fromStationId, String toStationId, boolean isBreakable) {
+
         // Todo: Task ci
+        Station fromStation = stations.get(fromStationId);
+        Station toStation = stations.get(toStationId);
+
+        if (fromStation == null || toStation == null) {
+            throw new IllegalArgumentException("One or both of the station IDs do not exist!");
+        }
+
+        for (Track track : tracks.values()) {
+            if (track.connects(fromStationId, toStationId)) {
+                throw new IllegalArgumentException("A track already exists between the two provided stations!");
+            }
+        }
+        if (isBreakable) {
+            tracks.put(trackId, new BreakableTrack(trackId, fromStationId, toStationId));
+        } else {
+            tracks.put(trackId, new Track(trackId, fromStationId, toStationId, TrackType.NORMAL));
+        }
     }
 
     public void createPassenger(String startStationId, String destStationID, String passengerId, boolean isMechanic) {

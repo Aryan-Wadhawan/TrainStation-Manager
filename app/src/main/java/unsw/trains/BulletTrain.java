@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import unsw.loads.Cargo;
 import unsw.loads.Passenger;
 import unsw.loads.PerishableCargo;
+import unsw.managers.CargoManager;
 import unsw.response.models.LoadInfoResponse;
 import unsw.utils.Position;
 
@@ -42,13 +43,14 @@ public class BulletTrain extends Train {
      * Gets the current total weight of passengers and cargo.
      */
     @Override
-    public int getCargoWeight() {
+    public int getTotalWeight() {
         int passengerWeight = passengers.size() * 70; // Each passenger weighs 70kg
         int cargoWeight = cargoList.stream().mapToInt(Cargo::getWeight).sum();
         int perishableCargoWeight = perishableCargo.stream().mapToInt(Cargo::getWeight).sum();
         return passengerWeight + cargoWeight + perishableCargoWeight;
     }
 
+    @Override
     public List<PerishableCargo> getPerishableCargo() {
         return perishableCargo;
     }
@@ -61,12 +63,14 @@ public class BulletTrain extends Train {
         cargoList.add(cargo);
     }
 
+    @Override
     public void removeCargo(PerishableCargo cargo) {
 
         perishableCargo.remove(cargo);
 
     }
 
+    @Override
     public void removeCargo(Cargo cargo) {
 
         cargoList.remove(cargo);
@@ -78,14 +82,14 @@ public class BulletTrain extends Train {
      */
     @Override
     public double getSpeed() {
-        return Math.max(2.0, BASE_SPEED - (getCargoWeight() / 1000.0));
+        return Math.max(2.0, BASE_SPEED - (getTotalWeight() / 1000.0));
     }
 
     /**
      * Loads passengers onto the train.
      */
     public boolean loadPassenger(Passenger passenger) {
-        if (getCargoWeight() + 70 <= MAX_CAPACITY_KG) { // Each passenger is 70kg
+        if (getTotalWeight() + 70 <= MAX_CAPACITY_KG) { // Each passenger is 70kg
             passengers.add(passenger);
             return true;
         }
@@ -96,7 +100,7 @@ public class BulletTrain extends Train {
      * Loads cargo onto the train.
      */
     public boolean loadCargo(Cargo cargo) {
-        if (getCargoWeight() + cargo.getWeight() <= MAX_CAPACITY_KG) {
+        if (getTotalWeight() + cargo.getWeight() <= MAX_CAPACITY_KG) {
             cargoList.add(cargo);
             return true;
         }
@@ -113,19 +117,22 @@ public class BulletTrain extends Train {
 
     @Override
     public boolean hasCapacity() {
-        return getCargoWeight() < MAX_CAPACITY_KG;
+        return getTotalWeight() < MAX_CAPACITY_KG;
     }
 
+    @Override
     public void addPassenger(Passenger p) {
         if (hasCapacity()) {
             passengers.add(p);
         }
     }
 
+    @Override
     public void removePassenger(Passenger p) {
         passengers.remove(p);
     }
 
+    @Override
     public List<Passenger> getPassengers() {
         return passengers;
     }
@@ -149,6 +156,21 @@ public class BulletTrain extends Train {
                 .collect(Collectors.toList()));
 
         return loads;
+    }
+
+    public void updatePerishableCargo() {
+        // Reduce time for perishable cargo on train
+        for (PerishableCargo perishableCargo : perishableCargo) {
+            perishableCargo.decreaseTime(1);
+        }
+
+        // Remove expired perishable cargo from the station
+        CargoManager.removeExpiredPerishableCargo(perishableCargo);
+    }
+
+    @Override
+    public List<Cargo> getCargo() {
+        return cargoList;
     }
 
 }

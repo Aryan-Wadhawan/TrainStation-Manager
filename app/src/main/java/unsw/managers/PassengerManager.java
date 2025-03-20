@@ -27,10 +27,7 @@ public class PassengerManager {
 
         List<Passenger> toBoard = new ArrayList<>();
         for (Passenger passenger : station.getPassengersWaiting()) {
-            // if (train.getPassengers().size() < 50 && train.getRoute().contains(passenger.getDestination())) {
-            //     toBoard.add(passenger);
-            // }
-            if (train.getRoute().contains(passenger.getDestination())) {
+            if (train.getRoute().contains(passenger.getDestination()) && train.hasCapacity()) {
                 toBoard.add(passenger);
             }
         }

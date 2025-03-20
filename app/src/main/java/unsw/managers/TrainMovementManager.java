@@ -2,6 +2,7 @@ package unsw.managers;
 
 import unsw.loads.PerishableCargo;
 import unsw.stations.Station;
+import unsw.tracks.BreakableTrack;
 import unsw.tracks.Track;
 import unsw.trains.Train;
 import unsw.trains.TrainTracker;
@@ -11,15 +12,15 @@ import java.util.List;
 import java.util.Map;
 
 public class TrainMovementManager {
-    //private Map<String, Train> trains;
     private Map<String, Station> stations;
-    //private Map<String, Track> tracks;
+    private Map<String, Track> tracks;
     private TrainTracker trainTracker;
 
     public TrainMovementManager(Map<String, Train> trains, Map<String, Station> stations, Map<String, Track> tracks,
             TrainTracker trainTracker) {
         this.stations = stations;
         this.trainTracker = trainTracker;
+        this.tracks = tracks;
     }
 
     public TrainTracker getTrainTracker() {
@@ -34,20 +35,23 @@ public class TrainMovementManager {
 
         // Ensure station is valid before boarding passengers and cargo
         if (station != null) {
-            // Reduce time for perishable cargo and remove expired items
-            for (PerishableCargo perishableCargo : train.getPerishableCargo()) {
-                perishableCargo.decreaseTime(1); // Reduce time by 1 minute
+            // Reduce time for perishable cargo and remove expired items (Only for Cargo & Bullet trains)
+            if (train.getType().equals("CargoTrain") || train.getType().equals("BulletTrain")) {
+                for (PerishableCargo perishableCargo : train.getPerishableCargo()) {
+                    perishableCargo.decreaseTime(1); // Reduce time by 1 minute
+                }
+                CargoManager.removeExpiredPerishableCargo(train.getPerishableCargo()); // Remove expired cargo
             }
-            PassengerManager.boardPassengers(train, station);
-            CargoManager.boardCargo(train, station);
 
-            // Remove expired perishable cargo from the train
-            CargoManager.removeExpiredPerishableCargo(train.getPerishableCargo()); // Remove expired cargo
+            // Handle Passenger boarding ONLY for PassengerTrain and BulletTrain
+            if (train.getType().equals("PassengerTrain") || train.getType().equals("BulletTrain")) {
+                PassengerManager.boardPassengers(train, station);
+            }
 
-            // for (Station s : stations.values()) {
-            //     CargoManager.removeExpiredPerishableCargo(s.getPerishableCargoWaiting());
-            // }
-
+            // Handle Cargo boarding ONLY for CargoTrain and BulletTrain
+            if (train.getType().equals("CargoTrain") || train.getType().equals("BulletTrain")) {
+                CargoManager.boardCargo(train, station);
+            }
         }
 
         // Get train route and determine next station
@@ -63,6 +67,18 @@ public class TrainMovementManager {
         Position nextPos = nextStation.getPosition();
         double speed = train.getSpeed();
 
+        // Check if the track is broken before proceeding
+        Track trackToNextStation = null;
+        for (Track track : tracks.values()) {
+            if (track.connects(currentLocation, nextStationId)) {
+                trackToNextStation = track;
+                break;
+            }
+        }
+        if (trackToNextStation instanceof BreakableTrack && ((BreakableTrack) trackToNextStation).isBroken()) {
+            return; // Train waits at station if the track is broken
+        }
+
         // Compute Euclidean distance
         double dx = nextPos.getX() - train.getPosition().getX();
         double dy = nextPos.getY() - train.getPosition().getY();
@@ -71,16 +87,44 @@ public class TrainMovementManager {
         // If train reaches the station, handle arrival
         if (speed >= distanceToNext) {
             trainArrivesAtStation(train, nextStation);
+
         } else {
             moveTowards(train, nextPos, speed, distanceToNext);
         }
     }
 
     private void trainArrivesAtStation(Train train, Station newStation) {
+        String prevStationId = trainTracker.getTrainLocation(train.getTrainId());
+
+        // Find the previous track (train is leaving this track)
+        Track previousTrack = null;
+        for (Track track : tracks.values()) {
+            if (track.connects(prevStationId, newStation.getStationId())) {
+                previousTrack = track;
+                break;
+            }
+        }
+
+        // Reduce durability AFTER train moves off the track
+        if (previousTrack instanceof BreakableTrack) {
+            BreakableTrack breakableTrack = (BreakableTrack) previousTrack;
+            int totalWeight = train.getTotalWeight(); // Ensure method includes passengers + cargo
+
+            System.out.println("Train " + train.getTrainId() + " leaving " + breakableTrack.getTrackId()
+                    + ", reducing durability by " + (1 + Math.ceil(totalWeight / 1000.0)));
+
+            breakableTrack.decreaseDurability(totalWeight);
+        }
+
         Station currentStation = stations.get(trainTracker.getTrainLocation(train.getTrainId()));
-        // Unload Passengers & Cargo using the new managers
-        PassengerManager.unloadPassengers(train, newStation);
-        CargoManager.unloadCargo(train, newStation);
+
+        // Unload Passengers & Cargo safely based on train type
+        if (train.getType().equals("PassengerTrain") || train.getType().equals("BulletTrain")) {
+            PassengerManager.unloadPassengers(train, newStation);
+        }
+        if (train.getType().equals("CargoTrain") || train.getType().equals("BulletTrain")) {
+            CargoManager.unloadCargo(train, newStation);
+        }
 
         if (currentStation != null) {
             currentStation.removeTrain(train); // Remove train from old station
@@ -88,10 +132,6 @@ public class TrainMovementManager {
 
         train.setPosition(newStation.getPosition());
         newStation.addTrain(train); // Add to new station
-
-        // Board Passengers & Cargo using the new managers
-        PassengerManager.boardPassengers(train, newStation);
-        CargoManager.boardCargo(train, newStation);
 
         if (isLinearTrain(train) && isEndOfRoute(train, newStation)) {
             train.reverseDirection();
@@ -119,6 +159,29 @@ public class TrainMovementManager {
         double newY = train.getPosition().getY() + ratio * (nextPos.getY() - train.getPosition().getY());
 
         train.setPosition(new Position(newX, newY));
+
+        String currentLocation = trainTracker.getTrainLocation(train.getTrainId());
+        String nextStationId = train.getRoute()
+                .get(getNextStationIndex(train, train.getRoute().indexOf(currentLocation)));
+
+        // Find the track the train is currently moving on
+        Track trackMovingOn = null;
+        for (Track track : tracks.values()) {
+            if (track.connects(currentLocation, nextStationId)) {
+                trackMovingOn = track;
+                break;
+            }
+        }
+
+        if (trackMovingOn instanceof BreakableTrack) {
+            BreakableTrack breakableTrack = (BreakableTrack) trackMovingOn;
+
+            // Reduce durability by 1 every tick
+            System.out.println("Train " + train.getTrainId() + " is moving on " + breakableTrack.getTrackId()
+                    + ", reducing durability by 1");
+
+            breakableTrack.decreaseDurability(0); // Just reduce by 1, trainLoad is not needed here
+        }
     }
 
     private int getNextStationIndex(Train train, int currentIndex) {

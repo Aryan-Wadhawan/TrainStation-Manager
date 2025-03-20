@@ -1,12 +1,10 @@
 package unsw.trains;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import unsw.loads.Cargo;
 import unsw.loads.Passenger;
 import unsw.loads.PerishableCargo;
-import unsw.managers.CargoManager;
 import unsw.response.models.LoadInfoResponse;
 import unsw.utils.Position;
 
@@ -15,9 +13,6 @@ public abstract class Train {
     private Position position;
     private List<String> route;
     private String type;
-    private List<Passenger> passengers;
-    private List<Cargo> regularCargo;
-    private List<PerishableCargo> perishableCargo;
     private boolean isMovingForward;
 
     public Train(String trainId, Position position, List<String> route, String type) {
@@ -26,9 +21,6 @@ public abstract class Train {
         this.route = route;
         this.type = type;
         this.isMovingForward = true;
-        this.passengers = new ArrayList<>();
-        this.regularCargo = new ArrayList<>();
-        this.perishableCargo = new ArrayList<>();
     }
 
     public double getSpeed() {
@@ -36,15 +28,15 @@ public abstract class Train {
         case "PassengerTrain":
             return 2.0;
         case "CargoTrain":
-            return Math.max(1.0, 3.0 - getCargoWeight() / 1000.0);
+            return Math.max(1.0, 3.0 - getTotalWeight() / 1000.0);
         case "BulletTrain":
-            return Math.max(2.0, 5.0 - getCargoWeight() / 1000.0);
+            return Math.max(2.0, 5.0 - getTotalWeight() / 1000.0);
         default:
             throw new IllegalArgumentException("Unknown train type: " + getType());
         }
     }
 
-    public abstract int getCargoWeight();
+    public abstract int getTotalWeight();
 
     public String getTrainId() {
         return trainId;
@@ -74,51 +66,23 @@ public abstract class Train {
         return isMovingForward;
     }
 
-    public List<Passenger> getPassengers() {
-        return passengers;
-    }
+    public abstract List<Passenger> getPassengers();
 
-    public List<Cargo> getCargo() {
+    public abstract List<Cargo> getCargo();
 
-        return regularCargo;
-    }
+    public abstract List<PerishableCargo> getPerishableCargo();
 
-    public List<PerishableCargo> getPerishableCargo() {
-        return perishableCargo;
-    }
+    public abstract void addPassenger(Passenger passenger);
 
-    public void addPassenger(Passenger passenger) {
-        if (canCarryPassengers()) {
-            passengers.add(passenger);
-        }
-    }
+    public abstract void removePassenger(Passenger passenger);
 
-    public void removePassenger(Passenger passenger) {
-        passengers.remove(passenger);
-    }
+    public abstract void addCargo(Cargo cargo);
 
-    public void addCargo(Cargo cargo) {
+    public abstract void addCargo(PerishableCargo cargo);
 
-        regularCargo.add(cargo);
+    public abstract void removeCargo(PerishableCargo cargo);
 
-    }
-
-    public void addCargo(PerishableCargo cargo) {
-
-        perishableCargo.add((PerishableCargo) cargo);
-
-    }
-
-    public void removeCargo(PerishableCargo cargo) {
-        perishableCargo.remove(cargo);
-
-    }
-
-    public void removeCargo(Cargo cargo) {
-
-        regularCargo.remove(cargo);
-
-    }
+    public abstract void removeCargo(Cargo cargo);
 
     public boolean canCarryPassengers() {
         return this.type.equals("PassengerTrain") || this.type.equals("BulletTrain");
@@ -132,13 +96,5 @@ public abstract class Train {
 
     public abstract boolean hasCapacity();
 
-    public void updatePerishableCargo() {
-        // Reduce time for perishable cargo on train
-        for (PerishableCargo perishableCargo : perishableCargo) {
-            perishableCargo.decreaseTime(1);
-        }
-
-        // Remove expired perishable cargo from the station
-        CargoManager.removeExpiredPerishableCargo(perishableCargo);
-    }
+    public abstract void updatePerishableCargo();
 }

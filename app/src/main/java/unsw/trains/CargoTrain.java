@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import unsw.loads.Cargo;
+import unsw.loads.Passenger;
 import unsw.loads.PerishableCargo;
+import unsw.managers.CargoManager;
 import unsw.response.models.LoadInfoResponse;
 import unsw.utils.Position;
 
@@ -13,16 +15,16 @@ public class CargoTrain extends Train {
     private static final int BASE_SPEED = 3;
     private static final int MAX_CAPACITY_KG = 5000;
     private List<Cargo> cargoList;
-    private List<PerishableCargo> perishableCargo;
+    private List<PerishableCargo> perishableCargoList;
 
     public CargoTrain(String trainId, Position position, List<String> route) {
         super(trainId, position, route, "CargoTrain");
         this.cargoList = new ArrayList<>();
-        this.perishableCargo = new ArrayList<>();
+        this.perishableCargoList = new ArrayList<>();
     }
 
     public boolean hasCapacity() {
-        return getCargoWeight() < MAX_CAPACITY_KG;
+        return getTotalWeight() < MAX_CAPACITY_KG;
     }
 
     public void removeCargo(Cargo c) {
@@ -51,18 +53,18 @@ public class CargoTrain extends Train {
      * Gets the current cargo weight on board.
      */
     @Override
-    public int getCargoWeight() {
+    public int getTotalWeight() {
         int cargoWeight = cargoList.stream().mapToInt(Cargo::getWeight).sum();
-        int perishableCargoWeight = perishableCargo.stream().mapToInt(Cargo::getWeight).sum();
+        int perishableCargoWeight = perishableCargoList.stream().mapToInt(Cargo::getWeight).sum();
         return cargoWeight + perishableCargoWeight;
     }
 
     public List<PerishableCargo> getPerishableCargo() {
-        return perishableCargo;
+        return perishableCargoList;
     }
 
     public void addCargo(PerishableCargo cargo) {
-        perishableCargo.add(cargo);
+        perishableCargoList.add(cargo);
     }
 
     public void addCargo(Cargo cargo) {
@@ -74,14 +76,14 @@ public class CargoTrain extends Train {
      */
     @Override
     public double getSpeed() {
-        return Math.max(1.0, BASE_SPEED - (getCargoWeight() / 1000.0));
+        return Math.max(1.0, BASE_SPEED - (getTotalWeight() / 1000.0));
     }
 
     /**
      * Loads cargo onto the train.
      */
     public boolean loadCargo(Cargo cargo) {
-        if (getCargoWeight() + cargo.getWeight() <= MAX_CAPACITY_KG) {
+        if (getTotalWeight() + cargo.getWeight() <= MAX_CAPACITY_KG) {
             cargoList.add(cargo);
             return true;
         }
@@ -109,6 +111,36 @@ public class CargoTrain extends Train {
                 .collect(Collectors.toList()));
 
         return loads;
+    }
+
+    @Override
+    public List<Passenger> getPassengers() {
+        return null;
+    }
+
+    public void updatePerishableCargo() {
+        // Reduce time for perishable cargo on train
+        for (PerishableCargo perishableCargo : perishableCargoList) {
+            perishableCargo.decreaseTime(1);
+        }
+
+        // Remove expired perishable cargo from the station
+        CargoManager.removeExpiredPerishableCargo(perishableCargoList);
+    }
+
+    @Override
+    public void addPassenger(Passenger passenger) {
+        return;
+    }
+
+    @Override
+    public void removePassenger(Passenger passenger) {
+        return;
+    }
+
+    @Override
+    public void removeCargo(PerishableCargo cargo) {
+        perishableCargoList.remove(cargo);
     }
 
 }

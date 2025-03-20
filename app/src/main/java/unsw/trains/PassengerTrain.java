@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import unsw.loads.Cargo;
 import unsw.loads.Passenger;
+import unsw.loads.PerishableCargo;
 import unsw.response.models.LoadInfoResponse;
 import unsw.utils.Position;
 
@@ -39,7 +41,7 @@ public class PassengerTrain extends Train {
      * Returns the current weight of all passengers on board.
      */
     @Override
-    public int getCargoWeight() {
+    public int getTotalWeight() {
         return passengers.size() * PASSENGER_WEIGHT;
     }
 
@@ -69,6 +71,41 @@ public class PassengerTrain extends Train {
     public List<LoadInfoResponse> getLoadsInfo() {
         return getPassengers().stream().map(passenger -> new LoadInfoResponse(passenger.getPassengerId(), "Passenger"))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Cargo> getCargo() {
+        return null;
+    }
+
+    @Override
+    public List<PerishableCargo> getPerishableCargo() {
+        return null;
+    }
+
+    @Override
+    public void addCargo(Cargo cargo) {
+        return;
+    }
+
+    @Override
+    public void addCargo(PerishableCargo cargo) {
+        return;
+    }
+
+    @Override
+    public void removeCargo(PerishableCargo cargo) {
+        return;
+    }
+
+    @Override
+    public void removeCargo(Cargo cargo) {
+        return;
+    }
+
+    @Override
+    public void updatePerishableCargo() {
+        return;
     }
 
 }

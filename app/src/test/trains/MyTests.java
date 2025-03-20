@@ -3,6 +3,8 @@ package trains;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.List;
 
@@ -393,34 +395,176 @@ public class MyTests {
         assertEquals(0, controller.getTrainInfo("train1").getLoads().size());
     }
 
-    // @Test
-    // public void testBulletTrainCanTransportPerishableCargoFaster() {
-    //     TrainsController controller = new TrainsController();
+    @Test
+    public void testBulletTrainCanTransportPerishableCargoFaster() {
+        TrainsController controller = new TrainsController();
 
-    //     // Create stations
-    //     controller.createStation("s1", "CentralStation", 0, 0);
-    //     controller.createStation("s2", "CentralStation", 0, 10);
-    //     controller.createTrack("t1-2", "s1", "s2");
+        // Create stations
+        controller.createStation("s1", "CentralStation", 0, 0);
+        controller.createStation("s2", "CentralStation", 0, 9);
+        controller.createTrack("t1-2", "s1", "s2");
 
-    //     // Create perishable cargo with 10 minutes before it expires
-    //     controller.createCargo("s1", "s2", "c1", 50);
+        // Create perishable cargo with 10 minutes before it expires
+        controller.createCargo("s1", "s2", "c1", 50);
 
-    //     // Create a fast bullet train (5km/min)
-    //     assertDoesNotThrow(() -> {
-    //         controller.createTrain("train1", "PassengerTrain", "s1", List.of("s1", "s2"));
-    //     });
+        assertEquals(1, controller.getStationInfo("s1").getLoads().size());
+        // Create a fast bullet train (5km/min)
+        assertDoesNotThrow(() -> {
+            controller.createTrain("train1", "CargoTrain", "s1", List.of("s1", "s2"));
+        });
 
-    //     // Train should pick up perishable cargo since it will reach in 10 minutes
-    //     controller.simulate(2);
-    //     assertEquals(0, controller.getStationInfo("s1").getLoads().size());
-    //     assertEquals(1, controller.getTrainInfo("train1").getLoads().size());
+        // Train should pick up perishable cargo since it will reach in 10 minutes
+        controller.simulate(1);
+        assertEquals(0, controller.getStationInfo("s1").getLoads().size());
+        assertEquals(1, controller.getTrainInfo("train1").getLoads().size());
 
-    //     // Simulate time for train to reach destination
-    //     //controller.simulate(1);
+        // Simulate time for train to reach destination
+        controller.simulate(3);
 
-    //     // Ensure cargo is delivered successfully
-    //     assertEquals(0, controller.getTrainInfo("train1").getLoads().size());
-    //     assertEquals(1, controller.getStationInfo("s2").getLoads().size());
+        // Ensure cargo is delivered successfully
+        assertEquals(0, controller.getTrainInfo("train1").getLoads().size());
+        assertEquals(1, controller.getStationInfo("s2").getLoads().size());
 
-    // }
+    }
+
+    @Test
+    public void testBreakableTrackCreation() {
+        TrainsController controller = new TrainsController();
+        controller.createStation("s1", "PassengerStation", 0.0, 0.0);
+        controller.createStation("s2", "PassengerStation", 10.0, 10.0);
+
+        // Create a breakable track
+        controller.createTrack("breakableTrack", "s1", "s2", true);
+
+        // Verify track is created with durability 10 and is not broken
+        assertEquals(10, controller.getTrackInfo("breakableTrack").getDurability());
+        assertEquals("UNBROKEN", controller.getTrackInfo("breakableTrack").getType().toString());
+    }
+
+    @Test
+    public void testBreakableTrackDurabilityReduction() {
+        TrainsController controller = new TrainsController();
+        controller.createStation("s1", "PassengerStation", 0.0, 0.0);
+        controller.createStation("s2", "PassengerStation", 0.0, 10.0);
+
+        // Ensure track exists before creating the train
+        controller.createTrack("breakableTrack", "s1", "s2", true);
+
+        try {
+            controller.createTrain("train1", "PassengerTrain", "s1", List.of("s1", "s2"));
+        } catch (InvalidRouteException e) {
+            fail("Train creation failed, track might not exist.");
+        }
+
+        // Ensure the train starts moving
+        controller.simulate(5);
+
+        // Get updated durability
+        int updatedDurability = controller.getTrackInfo("breakableTrack").getDurability();
+
+        // Ensure durability has decreased
+        assertTrue(updatedDurability < 10, "Durability did not decrease as expected.");
+
+    }
+
+    @Test
+    public void testBreakableTrackBecomesBroken() {
+        TrainsController controller = new TrainsController();
+        controller.createStation("s1", "PassengerStation", 0.0, 0.0);
+        controller.createStation("s2", "PassengerStation", 0.0, 50.0);
+
+        controller.createTrack("breakableTrack", "s1", "s2", true);
+        try {
+            controller.createTrain("train1", "PassengerTrain", "s1", List.of("s1", "s2"));
+        } catch (InvalidRouteException e) {
+            fail("Train creation failed, track might not exist.");
+        }
+
+        // Move train multiple times until track breaks
+        controller.simulate(10);
+
+        // Ensure track is broken
+        assertEquals(0, controller.getTrackInfo("breakableTrack").getDurability());
+        assertEquals("BROKEN", controller.getTrackInfo("breakableTrack").getType().toString());
+    }
+
+    @Test
+    public void testTrainsStopOnBrokenTrack() {
+        TrainsController controller = new TrainsController();
+        controller.createStation("s1", "PassengerStation", 0.0, 0.0);
+        controller.createStation("s2", "PassengerStation", 0.0, 30.0);
+
+        controller.createTrack("breakableTrack", "s1", "s2", true);
+        try {
+            controller.createTrain("train1", "PassengerTrain", "s1", List.of("s1", "s2"));
+        } catch (InvalidRouteException e) {
+            fail("Train creation failed, track might not exist.");
+        }
+
+        // Simulate until the track breaks
+        controller.simulate(10);
+
+        // Track should be broken
+        assertEquals("BROKEN", controller.getTrackInfo("breakableTrack").getType().toString());
+
+        // Train should remain at station-1
+        assertEquals("s1", controller.getTrainInfo("train1").getLocation());
+    }
+
+    @Test
+    public void testBreakableTrackRepairsAutomatically() {
+        TrainsController controller = new TrainsController();
+        controller.createStation("s1", "PassengerStation", 0.0, 0.0);
+        controller.createStation("s2", "PassengerStation", 0.0, 10.0);
+
+        controller.createTrack("breakableTrack", "s1", "s2", true);
+        try {
+            controller.createTrain("train1", "PassengerTrain", "s1", List.of("s1", "s2"));
+        } catch (InvalidRouteException e) {
+            fail("Train creation failed, track might not exist.");
+        }
+
+        // Break the track
+        controller.simulate(10);
+        assertEquals("BROKEN", controller.getTrackInfo("breakableTrack").getType().toString());
+
+        // Simulate 10 more ticks for repair
+        controller.simulate(10);
+
+        // Ensure track is fully repaired
+        assertEquals(10, controller.getTrackInfo("breakableTrack").getDurability());
+        assertEquals("UNBROKEN", controller.getTrackInfo("breakableTrack").getType().toString());
+    }
+
+    @Test
+    public void testTrainResumesAfterRepair() throws InvalidRouteException {
+        TrainsController controller = new TrainsController();
+        controller.createStation("s1", "PassengerStation", 0.0, 0.0);
+        controller.createStation("s2", "PassengerStation", 0.0, 10.0);
+
+        controller.createTrack("breakableTrack", "s1", "s2", true);
+        controller.createTrain("train1", "PassengerTrain", "s1", List.of("s1", "s2"));
+
+        // Break the track
+        controller.simulate(10);
+        assertEquals("BROKEN", controller.getTrackInfo("breakableTrack").getType().toString());
+        assertEquals("s1", controller.getTrainInfo("train1").getLocation());
+
+        // Simulate 10 more ticks for repair
+        controller.simulate(10);
+        assertEquals("s1", controller.getTrainInfo("train1").getLocation());
+
+        // Ensure track is fully repaired
+        assertEquals(10, controller.getTrackInfo("breakableTrack").getDurability());
+        assertEquals("UNBROKEN", controller.getTrackInfo("breakableTrack").getType().toString());
+
+        // Simulate movement
+        controller.simulate(5);
+
+        // Train should now be at s2
+        assertEquals("s2", controller.getTrainInfo("train1").getLocation());
+        assertEquals(5, controller.getTrackInfo("breakableTrack").getDurability());
+
+    }
+
 }

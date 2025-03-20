@@ -51,6 +51,10 @@ public class Track {
         return durability;
     }
 
+    protected void setType(TrackType newType) {
+        this.type = newType;
+    }
+
     public boolean hasTrain(Train train) {
         return trainsOnTrack.contains(train);
     }

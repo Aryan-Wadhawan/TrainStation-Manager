@@ -73,3 +73,15 @@ Expired cargo is now removed from trains and stations in TrainMovementManager an
 Better Encapsulation now.
 Train subclasses now manage their own load info instead of relying on Train for all types of cargo. good change my favourite honestly.
 By the end of the week, tests were more reliable, expired cargo was correctly removed, and the overall OOP structure was much cleaner.
+
+UPDATES:
+
+# Fixing Train Type-Specific Boarding in Our Train Simulation
+
+In our train system, we initially had a major bug—we were calling both cargo boarding AND UNLOADING functions for every train, both in one function. This led to error in load info.
+
+The issue took a while to track down, especially when I mistakenly onboarded cargo twice for a station. After debugging for a long time, I finally realized that each train type (Passenger, Cargo, Bullet) needed specific handling and shouldnt just code without thinking of every scenario, debug tool is LEGENDARY.
+
+The fix? Conditionally calling methods based on the train type in both moveTrain() and trainArrivesAtStation(). Now, PassengerTrains handle only passengers, CargoTrains only cargo, and BulletTrains handle both. this was a very big over sight from Task B honestly idk how i got throught that. bu i am very ahppy now, most methohds of train are now abstract and handle each and every test case nicely.
+
+This debugging experience taught me a crucial lesson: always check assumptions when calling methods, especially in polymorphic designs!
