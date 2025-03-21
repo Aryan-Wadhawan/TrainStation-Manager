@@ -11,11 +11,25 @@ import unsw.utils.Position;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Manages the movement of trains between stations and tracks, handling logic for:
+ * - Passenger/cargo boarding and unloading
+ * - Movement based on speed and distance
+ * - Track durability and breakdown handling
+ */
 public class TrainMovementManager {
     private Map<String, Station> stations;
     private Map<String, Track> tracks;
     private TrainTracker trainTracker;
 
+    /**
+     * Constructs a TrainMovementManager with references to the full system.
+     *
+     * @param trains        Map of train ID to Train objects.
+     * @param stations      Map of station ID to Station objects.
+     * @param tracks        Map of track ID to Track objects.
+     * @param trainTracker  Tracker used to find train locations.
+     */
     public TrainMovementManager(Map<String, Train> trains, Map<String, Station> stations, Map<String, Track> tracks,
             TrainTracker trainTracker) {
         this.stations = stations;
@@ -23,51 +37,54 @@ public class TrainMovementManager {
         this.tracks = tracks;
     }
 
+    /**
+     * Returns the train tracker associated with this manager.
+     *
+     * @return TrainTracker instance.
+     */
     public TrainTracker getTrainTracker() {
         return trainTracker;
     }
 
+    /**
+     * Moves a train from its current position toward the next station.
+     * Handles boarding/unloading, track durability, and direction.
+     *
+     * @param train The train to move.
+     */
     public void moveTrain(Train train) {
         String currentLocation = trainTracker.getTrainLocation(train.getTrainId());
-
-        // Get the station where the train is currently located
         Station station = stations.get(currentLocation);
 
-        // Ensure station is valid before boarding passengers and cargo
+        // Handle boarding logic and perishable cargo updates
         if (station != null) {
-            // Reduce time for perishable cargo and remove expired items (Only for Cargo & Bullet trains)
             if (train.getType().equals("CargoTrain") || train.getType().equals("BulletTrain")) {
-                for (PerishableCargo perishableCargo : train.getPerishableCargo()) {
-                    perishableCargo.decreaseTime(1); // Reduce time by 1 minute
+                for (PerishableCargo cargo : train.getPerishableCargo()) {
+                    cargo.decreaseTime(1);
                 }
-                CargoManager.removeExpiredPerishableCargo(train.getPerishableCargo()); // Remove expired cargo
+                CargoManager.removeExpiredPerishableCargo(train.getPerishableCargo());
             }
 
-            // Handle Passenger boarding ONLY for PassengerTrain and BulletTrain
             if (train.getType().equals("PassengerTrain") || train.getType().equals("BulletTrain")) {
                 PassengerManager.boardPassengers(train, station);
             }
 
-            // Handle Cargo boarding ONLY for CargoTrain and BulletTrain
             if (train.getType().equals("CargoTrain") || train.getType().equals("BulletTrain")) {
                 CargoManager.boardCargo(train, station);
             }
         }
 
-        // Get train route and determine next station
         List<String> route = train.getRoute();
         int currentIndex = route.indexOf(currentLocation);
         if (currentIndex == -1)
-            return; // Train is not on a valid route
+            return;
 
         int nextIndex = getNextStationIndex(train, currentIndex);
         String nextStationId = route.get(nextIndex);
         Station nextStation = stations.get(nextStationId);
-
         Position nextPos = nextStation.getPosition();
         double speed = train.getSpeed();
 
-        // Check if the track is broken before proceeding
         Track trackToNextStation = null;
         for (Track track : tracks.values()) {
             if (track.connects(currentLocation, nextStationId)) {
@@ -75,28 +92,33 @@ public class TrainMovementManager {
                 break;
             }
         }
+
         if (trackToNextStation instanceof BreakableTrack && ((BreakableTrack) trackToNextStation).isBroken()) {
-            return; // Train waits at station if the track is broken
+            return; // Wait if track is broken
         }
 
-        // Compute Euclidean distance
         double dx = nextPos.getX() - train.getPosition().getX();
         double dy = nextPos.getY() - train.getPosition().getY();
         double distanceToNext = Math.sqrt(dx * dx + dy * dy);
 
-        // If train reaches the station, handle arrival
         if (speed >= distanceToNext) {
             trainArrivesAtStation(train, nextStation);
-
         } else {
             moveTowards(train, nextPos, speed, distanceToNext);
         }
     }
 
+    /**
+     * Handles logic when a train arrives at a station.
+     * Unloads cargo/passengers, updates track durability, and reverses direction if needed.
+     *
+     * @param train      The arriving train.
+     * @param newStation The destination station.
+     */
     private void trainArrivesAtStation(Train train, Station newStation) {
         String prevStationId = trainTracker.getTrainLocation(train.getTrainId());
 
-        // Find the previous track (train is leaving this track)
+        // Find previous track
         Track previousTrack = null;
         for (Track track : tracks.values()) {
             if (track.connects(prevStationId, newStation.getStationId())) {
@@ -105,20 +127,15 @@ public class TrainMovementManager {
             }
         }
 
-        // Reduce durability AFTER train moves off the track
         if (previousTrack instanceof BreakableTrack) {
             BreakableTrack breakableTrack = (BreakableTrack) previousTrack;
-            int totalWeight = train.getTotalWeight(); // Ensure method includes passengers + cargo
-
-            System.out.println("Train " + train.getTrainId() + " leaving " + breakableTrack.getTrackId()
-                    + ", reducing durability by " + (1 + Math.ceil(totalWeight / 1000.0)));
-
+            int totalWeight = train.getTotalWeight();
             breakableTrack.decreaseDurability(totalWeight);
         }
 
-        Station currentStation = stations.get(trainTracker.getTrainLocation(train.getTrainId()));
+        Station currentStation = stations.get(prevStationId);
 
-        // Unload Passengers & Cargo safely based on train type
+        // Unload based on train type
         if (train.getType().equals("PassengerTrain") || train.getType().equals("BulletTrain")) {
             PassengerManager.unloadPassengers(train, newStation);
         }
@@ -127,33 +144,54 @@ public class TrainMovementManager {
         }
 
         if (currentStation != null) {
-            currentStation.removeTrain(train); // Remove train from old station
+            currentStation.removeTrain(train);
         }
 
         train.setPosition(newStation.getPosition());
-        newStation.addTrain(train); // Add to new station
+        newStation.addTrain(train);
 
         if (isLinearTrain(train) && isEndOfRoute(train, newStation)) {
             train.reverseDirection();
         }
     }
 
+    /**
+     * Checks if a train uses a linear route (not cyclical).
+     *
+     * @param train The train to check.
+     * @return true if linear, false otherwise.
+     */
     private boolean isLinearTrain(Train train) {
         return train.getType().equals("PassengerTrain") || train.getType().equals("CargoTrain");
     }
 
+    /**
+     * Checks if a train is at the end of its route (for reversing direction).
+     *
+     * @param train   The train to check.
+     * @param station The current station.
+     * @return true if train is at start/end of route.
+     */
     private boolean isEndOfRoute(Train train, Station station) {
         List<String> route = train.getRoute();
         return station.getStationId().equals(route.get(0))
                 || station.getStationId().equals(route.get(route.size() - 1));
     }
 
+    /**
+     * Moves a train toward a destination station, reducing distance based on speed.
+     * Also applies durability reduction if on a breakable track.
+     *
+     * @param train           The train to move.
+     * @param nextPos         Position of next station.
+     * @param speed           Speed of the train.
+     * @param distanceToNext  Distance to the next station.
+     */
     private void moveTowards(Train train, Position nextPos, double speed, double distanceToNext) {
-        if (distanceToNext == 0) {
-            return; // Prevent division by zero
-        }
+        if (distanceToNext == 0)
+            return;
 
-        double ratio = Math.min(1, speed / distanceToNext); // Ensure we don't overshoot
+        double ratio = Math.min(1, speed / distanceToNext);
 
         double newX = train.getPosition().getX() + ratio * (nextPos.getX() - train.getPosition().getX());
         double newY = train.getPosition().getY() + ratio * (nextPos.getY() - train.getPosition().getY());
@@ -164,26 +202,26 @@ public class TrainMovementManager {
         String nextStationId = train.getRoute()
                 .get(getNextStationIndex(train, train.getRoute().indexOf(currentLocation)));
 
-        // Find the track the train is currently moving on
-        Track trackMovingOn = null;
-        for (Track track : tracks.values()) {
-            if (track.connects(currentLocation, nextStationId)) {
-                trackMovingOn = track;
+        Track track = null;
+        for (Track t : tracks.values()) {
+            if (t.connects(currentLocation, nextStationId)) {
+                track = t;
                 break;
             }
         }
 
-        if (trackMovingOn instanceof BreakableTrack) {
-            BreakableTrack breakableTrack = (BreakableTrack) trackMovingOn;
-
-            // Reduce durability by 1 every tick
-            System.out.println("Train " + train.getTrainId() + " is moving on " + breakableTrack.getTrackId()
-                    + ", reducing durability by 1");
-
-            breakableTrack.decreaseDurability(0); // Just reduce by 1, trainLoad is not needed here
+        if (track instanceof BreakableTrack) {
+            ((BreakableTrack) track).decreaseDurability(0); // Reduce by 1 tick
         }
     }
 
+    /**
+     * Determines the next station index for the train based on direction and type.
+     *
+     * @param train        The train.
+     * @param currentIndex Current index in the route.
+     * @return Index of the next station.
+     */
     private int getNextStationIndex(Train train, int currentIndex) {
         boolean isLinear = !train.getType().equals("BulletTrain");
 
@@ -192,47 +230,52 @@ public class TrainMovementManager {
                     ? (currentIndex == train.getRoute().size() - 1 ? currentIndex - 1 : currentIndex + 1)
                     : (currentIndex == 0 ? currentIndex + 1 : currentIndex - 1);
         } else {
-            return (currentIndex + 1) % train.getRoute().size(); // Cyclical route
+            return (currentIndex + 1) % train.getRoute().size();
         }
     }
 
-    // Calculates the Euclidean distance from the train’s current position to its final destination.
+    /**
+     * Calculates the Euclidean distance from the train's current position to the final station in its route.
+     *
+     * @param train The train.
+     * @return Distance in units.
+     */
     public double getDistanceToDestination(Train train) {
         List<String> route = train.getRoute();
         if (route.isEmpty())
-            return 0.0; // No route assigned
+            return 0.0;
 
         String finalDestinationId = route.get(route.size() - 1);
-        Station finalDestination = stations.get(finalDestinationId);
+        Station destination = stations.get(finalDestinationId);
+        if (destination == null)
+            return 0.0;
 
-        if (finalDestination == null)
-            return 0.0; // Destination not found
+        Position current = train.getPosition();
+        Position dest = destination.getPosition();
 
-        Position currentPos = train.getPosition();
-        Position destinationPos = finalDestination.getPosition();
-
-        // Compute Euclidean distance
-        double dx = destinationPos.getX() - currentPos.getX();
-        double dy = destinationPos.getY() - currentPos.getY();
+        double dx = dest.getX() - current.getX();
+        double dy = dest.getY() - current.getY();
         return Math.sqrt(dx * dx + dy * dy);
     }
 
+    /**
+     * Calculates the Euclidean distance between two stations by ID.
+     *
+     * @param startStationId Start station ID.
+     * @param endStationId   End station ID.
+     * @return Distance in units.
+     */
     public double getDistanceBetweenStations(String startStationId, String endStationId) {
-        Station startStation = stations.get(startStationId);
-        Station endStation = stations.get(endStationId);
+        Station start = stations.get(startStationId);
+        Station end = stations.get(endStationId);
 
-        if (startStation == null || endStation == null) {
+        if (start == null || end == null) {
             throw new IllegalArgumentException("One of the stations does not exist!");
         }
 
-        Position startPos = startStation.getPosition();
-        Position endPos = endStation.getPosition();
-
-        // Compute Euclidean distance
-        double dx = endPos.getX() - startPos.getX();
-        double dy = endPos.getY() - startPos.getY();
+        double dx = end.getPosition().getX() - start.getPosition().getX();
+        double dy = end.getPosition().getY() - start.getPosition().getY();
 
         return Math.sqrt(dx * dx + dy * dy);
     }
-
 }

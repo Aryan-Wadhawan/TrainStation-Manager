@@ -31,7 +31,6 @@ import unsw.tracks.Track;
  * signatures.
  */
 public class TrainsController {
-    // Add any fields here if necessary
     private Map<String, Station> stations = new HashMap<>();
     private Map<String, Track> tracks = new HashMap<>();
     private Map<String, Train> trains = new HashMap<>();
@@ -39,15 +38,24 @@ public class TrainsController {
     private TrainTracker trainTracker;
     private TrainMovementManager trainMovementManager;
 
+    /**
+     * Constructs a new TrainsController and initializes supporting managers.
+     */
     public TrainsController() {
         this.trainTracker = new TrainTracker(trains, stations, tracks);
         this.trainMovementManager = new TrainMovementManager(trains, stations, tracks, trainTracker);
         CargoManager.setTrainMovementManager(trainMovementManager);
-
     }
 
+    /**
+     * Creates a station of a given type at the specified coordinates.
+     *
+     * @param stationId ID of the station.
+     * @param type      Station type (PassengerStation, CargoStation, etc).
+     * @param x         X-coordinate.
+     * @param y         Y-coordinate.
+     */
     public void createStation(String stationId, String type, double x, double y) {
-        // Todo: Task ai
         Station newStation;
         switch (type) {
         case "PassengerStation":
@@ -67,44 +75,57 @@ public class TrainsController {
         }
 
         stations.put(stationId, newStation);
-
     }
 
+    /**
+     * Creates a basic track between two stations.
+     *
+     * @param trackId        Track identifier.
+     * @param fromStationId  Origin station ID.
+     * @param toStationId    Destination station ID.
+     */
     public void createTrack(String trackId, String fromStationId, String toStationId) {
-        // Todo: Task aii
         Station fromStation = stations.get(fromStationId);
         Station toStation = stations.get(toStationId);
 
         if (fromStation == null || toStation == null) {
-            throw new IllegalArgumentException("One or both of the station IDs do not exist!");
+            throw new IllegalArgumentException("One or both station IDs do not exist!");
         }
 
         for (Track track : tracks.values()) {
             if (track.connects(fromStationId, toStationId)) {
-                throw new IllegalArgumentException("A track already exists between the two provided stations!");
+                throw new IllegalArgumentException("A track already exists between these stations.");
             }
         }
-        // Create track in both directions explicitly
+
         Track newTrack = new Track(trackId, fromStationId, toStationId, TrackType.NORMAL);
         tracks.put(trackId, newTrack);
-
     }
 
+    /**
+     * Creates a train of a given type at the specified station, with its route.
+     *
+     * @param trainId    ID of the train.
+     * @param type       Type of the train.
+     * @param stationId  Starting station ID.
+     * @param route      Ordered list of station IDs forming the route.
+     * @throws InvalidRouteException if the route is invalid for the train type.
+     */
     public void createTrain(String trainId, String type, String stationId, List<String> route)
             throws InvalidRouteException {
-        // Todo: Task aiii
+
         Station firstStation = stations.get(stationId);
 
         if (firstStation == null) {
             throw new IllegalArgumentException("Station does not exist: " + stationId);
         }
-        // check if no capacity lefrt at station  LATERRR
+
         if (!isValidRoute(route, type)) {
             throw new InvalidRouteException("Invalid route for train type: " + type);
         }
 
-        Train newTrain;
         Position startPosition = firstStation.getPosition();
+        Train newTrain;
 
         switch (type) {
         case "PassengerTrain":
@@ -122,26 +143,41 @@ public class TrainsController {
 
         trains.put(trainId, newTrain);
         firstStation.addTrain(newTrain);
-
-        // PassengerManager.boardPassengers(newTrain, firstStation);
-        // CargoManager.boardCargo(newTrain, firstStation);
     }
 
+    /**
+     * Returns a list of all station IDs.
+     *
+     * @return list of station IDs.
+     */
     public List<String> listStationIds() {
-        // Todo: Task aiv
         return new ArrayList<>(stations.keySet());
     }
 
+    /**
+     * Returns a list of all track IDs.
+     *
+     * @return list of track IDs.
+     */
     public List<String> listTrackIds() {
-        // Todo: Task av
         return new ArrayList<>(tracks.keySet());
     }
 
+    /**
+     * Returns a list of all train IDs.
+     *
+     * @return list of train IDs.
+     */
     public List<String> listTrainIds() {
-        // Todo: Task avi
         return new ArrayList<>(trains.keySet());
     }
 
+    /**
+     * Returns detailed information about a specific train.
+     *
+     * @param trainId ID of the train.
+     * @return TrainInfoResponse containing details.
+     */
     public TrainInfoResponse getTrainInfo(String trainId) {
         Train train = trains.get(trainId);
         if (train == null) {
@@ -153,6 +189,12 @@ public class TrainsController {
                 train.getLoadsInfo());
     }
 
+    /**
+     * Returns detailed information about a specific station.
+     *
+     * @param stationId ID of the station.
+     * @return StationInfoResponse containing details.
+     */
     public StationInfoResponse getStationInfo(String stationId) {
         Station station = stations.get(stationId);
         if (station == null) {
@@ -168,18 +210,24 @@ public class TrainsController {
                         .collect(Collectors.toList()));
     }
 
+    /**
+     * Returns track information given a track ID.
+     *
+     * @param trackId ID of the track.
+     * @return TrackInfoResponse or null if not found.
+     */
     public TrackInfoResponse getTrackInfo(String trackId) {
-        // Todo: Task aix
         Track track = tracks.get(trackId);
-        if (track == null) {
+        if (track == null)
             return null;
-        }
 
         return new TrackInfoResponse(track.getTrackId(), track.getFromStationId(), track.getToStationId(),
                 track.getType(), track.getDurability());
-
     }
 
+    /**
+     * Simulates 1 tick of the system: moving trains, updating stations, repairing tracks.
+     */
     public void simulate() {
         List<Train> sortedTrains = new ArrayList<>(trains.values());
         sortedTrains.sort(Comparator.comparing(Train::getTrainId));
@@ -191,7 +239,7 @@ public class TrainsController {
         for (Train train : sortedTrains) {
             trainMovementManager.moveTrain(train);
         }
-        // Repair all breakable tracks
+
         for (Track track : tracks.values()) {
             if (track instanceof BreakableTrack) {
                 ((BreakableTrack) track).repair();
@@ -209,6 +257,13 @@ public class TrainsController {
         }
     }
 
+    /**
+     * Creates and adds a new passenger to the specified start station.
+     *
+     * @param startStationId Start station ID.
+     * @param destStationId  Destination station ID.
+     * @param passengerId    Unique passenger ID.
+     */
     public void createPassenger(String startStationId, String destStationId, String passengerId) {
         Station startStation = stations.get(startStationId);
         if (startStation == null || (!startStation.getType().equals("PassengerStation")
@@ -220,6 +275,14 @@ public class TrainsController {
         startStation.addPassenger(passenger);
     }
 
+    /**
+     * Creates and adds a new cargo item to the specified start station.
+     *
+     * @param startStationId Start station ID.
+     * @param destStationId  Destination station ID.
+     * @param cargoId        Unique cargo ID.
+     * @param weight         Weight of the cargo.
+     */
     public void createCargo(String startStationId, String destStationId, String cargoId, int weight) {
         Station startStation = stations.get(startStationId);
         if (startStation == null || (!startStation.getType().equals("CargoStation")
@@ -231,30 +294,45 @@ public class TrainsController {
         startStation.addCargo(cargo);
     }
 
+    /**
+     * Creates and adds perishable cargo to the given start station.
+     *
+     * @param startStationId  Station ID where cargo starts.
+     * @param destStationId   Destination station ID.
+     * @param cargoId         Unique cargo ID.
+     * @param weight          Weight of the cargo.
+     * @param minsTillPerish  Minutes until the cargo expires.
+     */
     public void createPerishableCargo(String startStationId, String destStationId, String cargoId, int weight,
             int minsTillPerish) {
-        // Todo: Task biii
         Station station = stations.get(startStationId);
-        if (station == null)
+        if (station == null) {
             throw new IllegalArgumentException("Invalid station ID");
+        }
 
         PerishableCargo perishableCargo = new PerishableCargo(cargoId, destStationId, weight, minsTillPerish);
         station.addCargo(perishableCargo);
     }
 
+    /**
+     * Creates a track between two stations with optional breakability.
+     *
+     * @param trackId        ID of the track.
+     * @param fromStationId  Origin station ID.
+     * @param toStationId    Destination station ID.
+     * @param isBreakable    True if the track is breakable.
+     */
     public void createTrack(String trackId, String fromStationId, String toStationId, boolean isBreakable) {
-
-        // Todo: Task ci
         Station fromStation = stations.get(fromStationId);
         Station toStation = stations.get(toStationId);
 
         if (fromStation == null || toStation == null) {
-            throw new IllegalArgumentException("One or both of the station IDs do not exist!");
+            throw new IllegalArgumentException("One or both station IDs do not exist!");
         }
 
         for (Track track : tracks.values()) {
             if (track.connects(fromStationId, toStationId)) {
-                throw new IllegalArgumentException("A track already exists between the two provided stations!");
+                throw new IllegalArgumentException("A track already exists between these stations.");
             }
         }
         if (isBreakable) {
@@ -268,7 +346,7 @@ public class TrainsController {
         // Todo: Task cii
     }
 
-    /////// SOME UTILITY FUNCTIONS ///////////////////////////////////////////////////////////
+    //////////////// Utility Methods ////////////////////////////////////
 
     private boolean isCyclicalRoute(List<String> route) {
         return route.size() >= 3 && route.get(0).equals(route.get(route.size() - 1));
@@ -276,26 +354,23 @@ public class TrainsController {
 
     private boolean isValidRoute(List<String> route, String type) {
         if (route.size() < 2)
-            return false; // A valid route needs at least two stations
+            return false;
 
         if (isCyclicalRoute(route)) {
             if (type.equals("PassengerTrain") || type.equals("CargoTrain")) {
-                return false; // Passenger and Cargo trains cannot have cyclical routes
+                return false;
             }
         }
 
-        // Check if every station in the route is connected by a track
         for (int i = 0; i < route.size() - 1; i++) {
             String from = route.get(i);
             String to = route.get(i + 1);
 
             boolean trackExists = tracks.values().stream().anyMatch(track -> track.connects(from, to));
-
             if (!trackExists)
-                return false; // Route is broken
+                return false;
         }
 
-        return true; // Valid
+        return true;
     }
-
 }
